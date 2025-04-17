@@ -1,5 +1,6 @@
 import logging
 import random
+import time
 from typing import Any, Callable, cast
 
 import humanize
@@ -58,6 +59,7 @@ class Agent:
         self.journal = journal
         self.data_preview: str | None = None
         self.start_time = time.time()
+        self.current_step = 0
 
     def search_policy(self) -> Node | None:
         """Select a node to work on (or None to draft a new node)."""
@@ -117,15 +119,23 @@ class Agent:
 
     @property
     def _prompt_impl_guideline(self):
+        tot_time_elapsed = time.time() - self.start_time
+        tot_time_remaining = self.acfg.time_limit - tot_time_elapsed
+        exec_timeout = int(min(self.cfg.exec.timeout, tot_time_remaining))
+
         impl_guideline = [
+            f"<TOTAL_TIME_REMAINING: {format_time(tot_time_remaining)}>",
+            f"<TOTAL_STEPS_REMAINING: {self.acfg.steps - self.current_step}>",
             "The code should **implement the proposed solution** and **print the value of the evaluation metric computed on a hold-out validation set**.",
+            "**AND MOST IMPORTANTLY SAVE PREDICTIONS ON THE PROVIDED UNLABELED TEST DATA IN REQUIRED FILE FORMAT IN THE ./submission/ DIRECTORY.**",
             "The code should be a single-file python program that is self-contained and can be executed as-is.",
             "No parts of the code should be skipped, don't terminate the before finishing the script.",
             "Your response should only contain a single code block.",
-            f"Be aware of the running time of the code, it should complete within {humanize.naturaldelta(self.cfg.exec.timeout)}.",
+            f"Be aware of the running time of the code, it should complete within {humanize.naturaldelta(exec_timeout)}.",
             'All the provided input data is stored in "./input" directory.',
-            '**If there is test data provided for this task, please save the test predictions in a `submission.csv` file in the "./working" directory as described in the task description** This is extremely important since this file is used for grading/evaluation. DO NOT FORGET THE submission.csv file!',
+            '**If there is test data provided for this task, please save the test predictions in the "./working" directory as described in the task description** This is extremely important since this file is used for grading/evaluation. DO NOT FORGET THE submission files should be in the required format as described in the task description!',
             'You can also use the "./working" directory to store any temporary files that your code needs to create.',
+            "REMEMBER TO SAVE THE CORRECT FILES IN ./submission/ !!!!! The correct directory is important too.",
         ]
         if self.acfg.expose_prediction:
             impl_guideline.append(
@@ -293,6 +303,7 @@ class Agent:
             exec_result=exec_callback(result_node.code, True),
         )
         self.journal.append(result_node)
+        self.current_step += 1
 
     def parse_exec_result(self, node: Node, exec_result: ExecutionResult):
         logger.info(f"Agent is parsing execution results for node {node.id}")
