@@ -188,7 +188,7 @@ class Agent:
     def _draft(self) -> Node:
         prompt: Any = {
             "Introduction": (
-                "You are a Kaggle grandmaster attending a competition. "
+                "You are a data science grandmaster attending a competition. "
                 "In order to win this competition, you need to come up with an excellent and creative plan "
                 "for a solution and then implement this solution in Python. We will now provide a description of the task."
             ),
@@ -220,7 +220,7 @@ class Agent:
     def _improve(self, parent_node: Node) -> Node:
         prompt: Any = {
             "Introduction": (
-                "You are a Kaggle grandmaster attending a competition. You are provided with a previously developed "
+                "You are a data science grandmaster attending a competition. You are provided with a previously developed "
                 "solution below and should improve it in order to further increase the (test time) performance. "
                 "For this you should first outline a brief plan in natural language for how the solution can be improved and "
                 "then implement this improvement in Python based on the provided previous solution. "
@@ -256,7 +256,7 @@ class Agent:
     def _debug(self, parent_node: Node) -> Node:
         prompt: Any = {
             "Introduction": (
-                "You are a Kaggle grandmaster attending a competition. "
+                "You are a data science grandmaster attending a competition. "
                 "Your previous solution had a bug, so based on the information below, you should revise it in order to fix this bug. "
                 "Your response should be an implementation outline in natural language,"
                 " followed by a single markdown code block which implements the bugfix/solution."
@@ -314,7 +314,7 @@ class Agent:
 
         prompt = {
             "Introduction": (
-                "You are a Kaggle grandmaster attending a competition. "
+                "You are a data science grandmaster attending a competition. "
                 "You have written code to solve this task and now need to evaluate the output of the code execution. "
                 "You should determine if there were any bugs as well as report the empirical findings."
             ),
