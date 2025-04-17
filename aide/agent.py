@@ -305,7 +305,7 @@ class Agent:
         else:
             result_node = self._improve(parent_node)
 
-        self.parse_exec_result(
+        result_node = self.parse_exec_result(
             node=result_node,
             exec_result=exec_callback(result_node.code, True),
         )
@@ -351,8 +351,13 @@ class Agent:
         )
 
         if node.is_buggy:
+            logger.info(
+                f"Parsed results: Node {node.id} is buggy"
+            )
             node.metric = WorstMetricValue()
         else:
+            logger.info(f"Parsed results: Node {node.id} is not buggy")
             node.metric = MetricValue(
                 response["metric"], maximize=not response["lower_is_better"]
             )
+        return node
