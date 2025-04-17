@@ -1,3 +1,4 @@
+import shutil
 import logging
 import random
 import time
@@ -69,7 +70,7 @@ class Agent:
 
         # initial drafting
         if len(self.journal.draft_nodes) < search_cfg.num_drafts:
-            logger.debug("[search policy] drafting new node (not enough drafts)")
+            logger.info("[search policy] drafting new node (not enough drafts)")
             return None
 
         # debugging
@@ -80,20 +81,18 @@ class Agent:
                 for n in self.journal.buggy_nodes
                 if (n.is_leaf and n.debug_depth <= search_cfg.max_debug_depth)
             ]
-            if debuggable_nodes:
-                logger.debug("[search policy] debugging")
-                return random.choice(debuggable_nodes)
-            logger.debug("[search policy] not debugging by chance")
+            logger.info("[search policy] debugging")
+            return random.choice(debuggable_nodes)
 
         # back to drafting if no nodes to improve
         good_nodes = self.journal.good_nodes
         if not good_nodes:
-            logger.debug("[search policy] drafting new node (no good nodes)")
+            logger.info("[search policy] drafting new node (no good nodes)")
             return None
 
         # greedy
         greedy_node = self.journal.get_best_node()
-        logger.debug("[search policy] greedy node selected")
+        logger.info(f"[search policy] greedy node selected: node {greedy_node.id}")
         return greedy_node
 
     @property
@@ -181,8 +180,8 @@ class Agent:
                 # merge all code blocks into a single string
                 return nl_text, code
 
-            print("Plan + code extraction failed, retrying...")
-        print("Final plan + code extraction attempt failed, giving up...")
+            logger.info("Plan + code extraction failed, retrying...")
+        logger.info("Final plan + code extraction attempt failed, giving up...")
         return "", completion_text  # type: ignore
 
     def _draft(self) -> Node:
@@ -215,7 +214,9 @@ class Agent:
             prompt["Data Overview"] = self.data_preview
 
         plan, code = self.plan_and_code_query(prompt)
-        return Node(plan=plan, code=code)
+        new_node = Node(plan=plan, code=code)
+        logger.info(f"Drafted new node {new_node.id}")
+        return new_node
 
     def _improve(self, parent_node: Node) -> Node:
         prompt: Any = {
@@ -247,11 +248,9 @@ class Agent:
         prompt["Instructions"] |= self._prompt_impl_guideline
 
         plan, code = self.plan_and_code_query(prompt)
-        return Node(
-            plan=plan,
-            code=code,
-            parent=parent_node,
-        )
+        new_node = Node(plan=plan, code=code, parent=parent_node)
+        logger.info(f"Improved node {parent_node.id} to create new node {new_node.id}")
+        return new_node
 
     def _debug(self, parent_node: Node) -> Node:
         prompt: Any = {
@@ -279,7 +278,9 @@ class Agent:
             prompt["Data Overview"] = self.data_preview
 
         plan, code = self.plan_and_code_query(prompt)
-        return Node(plan=plan, code=code, parent=parent_node)
+        new_node = Node(plan=plan, code=code, parent=parent_node)
+        logger.info(f"Debugged node {parent_node.id} to create new node {new_node.id}")
+        return new_node
 
     def update_data_preview(
         self,
@@ -287,11 +288,15 @@ class Agent:
         self.data_preview = data_preview.generate(self.cfg.workspace_dir)
 
     def step(self, exec_callback: ExecCallbackType):
+        # clear the submission dir from previous steps
+        shutil.rmtree(self.cfg.workspace_dir / "submission", ignore_errors=True)
+        (self.cfg.workspace_dir / "submission").mkdir(exist_ok=True)
+
         if not self.journal.nodes or self.data_preview is None:
             self.update_data_preview()
 
         parent_node = self.search_policy()
-        logger.debug(f"Agent is generating code, parent node type: {type(parent_node)}")
+        logger.info(f"Agent is generating code, parent node type: {type(parent_node)}")
 
         if parent_node is None:
             result_node = self._draft()
