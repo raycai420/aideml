@@ -69,6 +69,7 @@ class Config(Hashable):
     eval: str | None
 
     log_dir: Path
+    log_level: str
     workspace_dir: Path
 
     preprocess_data: bool
