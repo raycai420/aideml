@@ -26,8 +26,13 @@ from rich.status import Status
 from rich.tree import Tree
 from .utils.config import load_task_desc, prep_agent_workspace, save_run, load_cfg
 
-logger = logging.getLogger("aide")
+class VerboseFilter(logging.Filter):
+    """
+    Filter (remove) logs that have verbose attribute set to True
+    """
 
+    def filter(self, record):
+        return not (hasattr(record, "verbose") and record.verbose)
 
 def journal_to_rich_tree(journal: Journal):
     best_node = journal.get_best_node()
@@ -53,8 +58,65 @@ def journal_to_rich_tree(journal: Journal):
     return tree
 
 
+def journal_to_string_tree(journal: Journal) -> str:
+    best_node = journal.get_best_node()
+    tree_str = "Solution tree\n"
+
+    def append_rec(node: Node, level: int):
+        nonlocal tree_str
+        indent = "  " * level
+        if node.is_buggy:
+            s = f"{indent}◍ bug (ID: {node.id})\n"
+        else:
+            # support for multiple markers; atm only "best" is supported
+            markers = []
+            if node is best_node:
+                markers.append("best")
+            marker_str = " & ".join(markers)
+            if marker_str:
+                s = f"{indent}● {node.metric.value:.3f} ({marker_str}) (ID: {node.id})\n"
+            else:
+                s = f"{indent}● {node.metric.value:.3f} (ID: {node.id})\n"
+        tree_str += s
+        for child in node.children:
+            append_rec(child, level + 1)
+
+    for n in journal.draft_nodes:
+        append_rec(n, 0)
+
+    return tree_str
+
+
 def run():
     cfg = load_cfg()
+    log_format = "[%(asctime)s] %(levelname)s: %(message)s"
+    logging.basicConfig(
+        level=getattr(logging, cfg.log_level.upper()), format=log_format, handlers=[]
+    )
+    # dont want info logs from httpx
+    httpx_logger: logging.Logger = logging.getLogger("httpx")
+    httpx_logger.setLevel(logging.WARNING)
+
+    logger = logging.getLogger("aide")
+    # save logs to files as well, using same format
+    cfg.log_dir.mkdir(parents=True, exist_ok=True)
+
+    # we'll have a normal log file and verbose log file. Only normal to console
+    file_handler = logging.FileHandler(cfg.log_dir / "aide.log")
+    file_handler.setFormatter(logging.Formatter(log_format))
+    file_handler.addFilter(VerboseFilter())
+
+    verbose_file_handler = logging.FileHandler(cfg.log_dir / "aide.verbose.log")
+    verbose_file_handler.setFormatter(logging.Formatter(log_format))
+
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(logging.Formatter(log_format))
+    console_handler.addFilter(VerboseFilter())
+
+    logger.addHandler(file_handler)
+    logger.addHandler(verbose_file_handler)
+    logger.addHandler(console_handler)
+
     logger.info(f'Starting run "{cfg.exp_name}"')
 
     task_desc = load_task_desc(cfg)
@@ -122,16 +184,13 @@ def run():
             subtitle="Press [b]Ctrl+C[/b] to stop the run",
         )
 
-    with Live(
-        generate_live(),
-        refresh_per_second=16,
-        screen=True,
-    ) as live:
-        while global_step < cfg.agent.steps:
-            agent.step(exec_callback=exec_callback)
-            save_run(cfg, journal)
-            global_step = len(journal)
-            live.update(generate_live())
+    while global_step < cfg.agent.steps:
+        agent.step(exec_callback=exec_callback)
+        # on the last step, print the tree
+        if global_step == cfg.agent.steps - 1:
+            logger.info(journal_to_string_tree(journal))
+        save_run(cfg, journal)
+        global_step = len(journal)
     interpreter.cleanup_session()
 
     if cfg.generate_report:
