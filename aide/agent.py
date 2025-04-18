@@ -81,8 +81,9 @@ class Agent:
                 for n in self.journal.buggy_nodes
                 if (n.is_leaf and n.debug_depth <= search_cfg.max_debug_depth)
             ]
-            logger.info("[search policy] debugging")
-            return random.choice(debuggable_nodes)
+            if debuggable_nodes:
+                logger.info("[search policy] debugging")
+                return random.choice(debuggable_nodes)
 
         # back to drafting if no nodes to improve
         good_nodes = self.journal.good_nodes
