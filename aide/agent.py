@@ -310,6 +310,31 @@ class Agent:
             exec_result=exec_callback(result_node.code, True),
         )
         self.journal.append(result_node)
+
+        best_node = self.journal.get_best_node()
+        if best_node is not None:
+            if best_node.id == result_node.id:
+                logger.info(f"Node {result_node.id} is the best node so far")
+                best_solution_dir = self.cfg.workspace_dir / "best_solution"
+                best_solution_dir.mkdir(exist_ok=True, parents=True)
+                # copy submission/submission.csv to best_submission/submission.csv
+                best_submission_dir = self.cfg.workspace_dir / "best_submission"
+                best_submission_dir.mkdir(exist_ok=True, parents=True)
+                # copy submission files to best_submission/
+                submission_idr = self.cfg.workspace_dir / "submission"
+                for item in submission_idr.iterdir():
+                    if item.is_file():
+                        shutil.copy(item, best_submission_dir / item.name)
+                        logger.info(f"Copied {item.name} to {best_submission_dir / item.name}")
+                # copy solution.py and relevant node id to best_solution/
+                with open(best_solution_dir / "solution.py", "w") as f:
+                    f.write(result_node.code)
+                # take note of the node id of the best node
+                with open(best_solution_dir / "node_id.txt", "w") as f:
+                    f.write(str(result_node.id))
+            else:
+                logger.info(f"Node {result_node.id} is not the best node")
+                logger.info(f"Node {best_node.id} is still the best node")
         self.current_step += 1
 
     def parse_exec_result(self, node: Node, exec_result: ExecutionResult):
