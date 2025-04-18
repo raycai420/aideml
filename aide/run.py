@@ -1,6 +1,7 @@
 import atexit
 import logging
 import shutil
+import sys
 
 from . import backend
 
